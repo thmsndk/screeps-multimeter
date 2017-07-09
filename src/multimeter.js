@@ -120,7 +120,9 @@ module.exports = class Multimeter extends EventEmitter {
   }
 
   run() {
-    this.api = new ScreepsAPI();
+    this.api = new ScreepsAPI({
+      ptr: this.config.ptr,
+    });
 
     this.screen = blessed.screen({
       smartCSR: true,
@@ -164,7 +166,7 @@ module.exports = class Multimeter extends EventEmitter {
   }
 
   connect() {
-    this.console.log("Connecting to Screeps as " + this.config.email + "...");
+    this.console.log("Connecting to Screeps" + (this.config.ptr ? " PTR" : "") + " as " + this.config.email + "...");
     this.api.on('open', () => {
       // Force a screen refresh to clear the screeps-api debug output
       this.screen.alloc();
