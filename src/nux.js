@@ -1,6 +1,9 @@
+const _ = require("lodash");
 const blessed = require("blessed");
 const configManager = require("./config_manager");
-
+const { BUILTIN_PLUGINS } = require("./plugins");
+const require_relative = require("require-relative");
+const EventEmitter = require("events");
 const DIALOG_LABEL = " {blue-fg}Multimeter Config{/blue-fg} ";
 
 const CONFIG_DEFAULTS = {
@@ -63,66 +66,110 @@ function prompt(screen, question, value) {
   });
 }
 
-module.exports = function() {
-  var screen = blessed.screen({
-    smartCSR: true,
-    ignoreLocked: ["C-c"],
-    autoPadding: true,
-  });
-  var canceled = new Promise((resolve, reject) => {
-    screen.key("C-c", () => setTimeout(reject, 100, new Error("Canceled")));
-  });
-  var promise = Promise.resolve(
-    message(
-      screen,
-      "No config file was found, so I will now create one. Press ^C to exit or any other key to continue.",
-    ),
-  )
-    .then(config =>
-      prompt(
-        screen,
-        "Enter your screeps API token (leave blank to connect to a private server):",
-      ).then(
-        token => Object.assign({ token }, config),
-        () =>
-          prompt(screen, "Enter the hostname for the server (without port):")
-            .then(hostname => Object.assign({ hostname }, config))
-            .then(config =>
-              prompt(screen, "Enter the port for the server:").then(port =>
-                Object.assign({ port }, config),
-              ),
-            )
-            .then(config =>
-              prompt(screen, "Enter your username or email:").then(username =>
-                Object.assign({ username }, config),
-              ),
-            )
-            .then(config =>
-              prompt(screen, "Enter your password:").then(password =>
-                Object.assign({ password }, config),
-              ),
-            ),
-      ),
-    )
-    .then(config =>
-      prompt(screen, "Enter shard name:", "shard0").then(shard =>
-        Object.assign({ shard }, config),
-      ),
-    )
-    .then(config =>
-      prompt(
-        screen,
-        "Enter a filename for configuration:",
-        "screeps-multimeter.json",
-      ).then(filename => [filename, config]),
-    )
-    .then(([filename, config]) => {
-      config = Object.assign(config, CONFIG_DEFAULTS);
-      configManager.config = config;
-      return configManager.saveConfig(filename).then(() => [filename, config]);
+module.exports = class Nux extends EventEmitter {
+  constructor(configManager) {
+    super();
+    this.configManager = configManager;
+  }
+
+  loadPlugins() {
+    _.each(BUILTIN_PLUGINS, name => {
+      const module = require(name);
+      try {
+        module(null, this);
+      } catch (error) {
+        console.log(`${name} was not written to support nux events`);
+      }
+    });
+    // .plugins does not exist yet
+    // // _.each(this.config.plugins, name => {
+    // //   const module = require_relative(name, this.configManager.filename);
+    // //   try {
+    // //     module(null, this);
+    // //   } catch (error) {
+    // //     console.log(`${name} was not written to support nux events`)
+    // //   }
+    // // });
+  }
+
+  run() {
+    const screen = (this.screen = blessed.screen({
+      smartCSR: true,
+      ignoreLocked: ["C-c"],
+      autoPadding: true,
+    }));
+
+    this.loadPlugins();
+
+    var canceled = new Promise((resolve, reject) => {
+      screen.key("C-c", () => setTimeout(reject, 100, new Error("Canceled")));
     });
 
-  return promiseFinally(Promise.race([promise, canceled]), () => {
-    screen.destroy();
-  });
+    var promise = Promise.resolve(
+      message(
+        screen,
+        "No config file was found, so I will now create one. Press ^C to exit or any other key to continue.",
+      ),
+    )
+      .then(config => {
+        const event = { config };
+        this.emit("selectServer", event);
+        if (event.skip) {
+          if(event.promise){
+            console.log('we got a promise')
+            return event.promise
+          }
+          return config;
+        }
+
+        return prompt(
+          screen,
+          "Enter your screeps API token (leave blank to connect to a private server):",
+        ).then(
+          token => Object.assign({ token }, config),
+          () =>
+            prompt(screen, "Enter the hostname for the server (without port):")
+              .then(hostname => Object.assign({ hostname }, config))
+              .then(config =>
+                prompt(screen, "Enter the port for the server:").then(port =>
+                  Object.assign({ port }, config),
+                ),
+              )
+              .then(config =>
+                prompt(screen, "Enter your username or email:").then(username =>
+                  Object.assign({ username }, config),
+                ),
+              )
+              .then(config =>
+                prompt(screen, "Enter your password:").then(password =>
+                  Object.assign({ password }, config),
+                ),
+              ),
+        );
+      })
+      .then(config =>
+        // TODO: emit event, check for skip
+        prompt(screen, "Enter shard name:", "shard0").then(shard =>
+          Object.assign({ shard }, config),
+        ),
+      )
+      .then(config =>
+        prompt(
+          screen,
+          "Enter a filename for configuration:",
+          "screeps-multimeter.json",
+        ).then(filename => [filename, config]),
+      )
+      .then(([filename, config]) => {
+        config = Object.assign(config, CONFIG_DEFAULTS);
+        configManager.config = config;
+        return configManager
+          .saveConfig(filename)
+          .then(() => [filename, config]);
+      });
+
+    return promiseFinally(Promise.race([promise, canceled]), () => {
+      screen.destroy();
+    });
+  }
 };

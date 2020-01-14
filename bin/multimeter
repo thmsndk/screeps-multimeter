@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const configManager = require("../src/config_manager");
-const nux = require("../src/nux");
+const nux = require("../src/nux")
 const Multimeter = require("../src/multimeter");
 
 process.on("unhandledRejection", function(err) {
@@ -12,7 +12,8 @@ Promise.resolve(configManager.loadConfig())
   .then(([path, config]) => {
     if (path) return;
     // No saved config, need to run the NUX.
-    return nux();
+    const nuxApp = new nux(configManager)
+    return nuxApp.run();
   })
   .then(() => {
     var app = new Multimeter(configManager);

@@ -10,13 +10,7 @@ const path = require("path");
 const util = require("util");
 
 const MOTD = "Now showing Screeps console. Type /help for help.";
-const BUILTIN_PLUGINS = [
-  "../plugins/alias",
-  "../plugins/auto_update",
-  "../plugins/watch",
-  "../plugins/screeps_console.compat",
-  "../plugins/html.js",
-];
+const { BUILTIN_PLUGINS } = require("./plugins");
 
 class Gauges extends blessed.layout {
   constructor(opts) {
