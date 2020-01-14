@@ -51,13 +51,11 @@ function list(screen, items) {
   return new Promise((resolve, reject) => {
     list.on("select", function(item) {
       const value = item.content;
-      console.log(`${value} selected`);
       list.destroy();
       resolve(value);
     });
 
     list.on("cancel ", function(value) {
-      console.log(`rejected`);
       reject(new Error("cancel"));
     });
   });

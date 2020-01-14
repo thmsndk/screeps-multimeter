@@ -152,7 +152,6 @@ module.exports = class Nux extends EventEmitter {
       .then(config => {
         // TODO: emit event, check for skip
         // TODO: could make an api call to get shard list
-        console.log(config)
         return prompt(screen, "Enter shard name:", "shard0").then(shard =>
           Object.assign({ shard }, config),
         );
