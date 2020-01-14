@@ -47,7 +47,7 @@ const load = async (config = false, opts = {}) => {
 
       Object.entries(data.servers).forEach(([name, server]) => {
         server.protocol = server.secure ? "https" : "http";
-        server.port = server.port || server.secure ? 443 : 21025;
+        server.port = server.port || (server.secure ? 443 : 21025);
       });
       const config = (data.configs && data.configs[config]) || {};
 
@@ -56,24 +56,6 @@ const load = async (config = false, opts = {}) => {
   }
   throw new Error("No valid config found");
 };
-// // if (!data.servers[server]) {
-// //   throw new Error(`Server '${server}' does not exist in '${path}'`);
-// // }
-// // const server = data.servers[server];
-// //       const api = new ScreepsAPI(
-// //         Object.assign(
-// //           {
-// //             hostname: server.host,
-// //             port: server.port,
-// //             protocol: server.secure ? "https" : "http",
-// //             token: server.token,
-// //           },
-// //           opts,
-// //         ),
-// //       );
-// // if (!conf.token && conf.username && conf.password) {
-// //   await api.auth(conf.username, conf.password);
-// // }
 
 const readFile = async file => {
   try {
@@ -92,11 +74,6 @@ module.exports = async function(multimeter, nux) {
   const { servers, config } = await load("screeps-multimeter");
   if (nux) {
     nux.on("selectServer", async event => {
-      // // console.log('test!!!!!')
-      // // if (event.type === "log") {
-      // //   event.line = parseLogJson(html2json(event.line));
-      // //   event.formatted = true;
-      // // }
       const items = Object.entries(servers).map(([name, server]) => name);
 
       if (!items.length) {
@@ -113,7 +90,11 @@ module.exports = async function(multimeter, nux) {
         let config = event.config || [];
         const server = servers[name];
         if (server) {
-          config.port = server.secure && server.port !== 443 ? server.port : null
+          config.port = !server.secure
+            ? server.port
+            : server.port !== 443
+            ? server.port
+            : null;
           Object.assign(config, {
             token: server.token,
             username: server.username,
