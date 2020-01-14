@@ -173,6 +173,7 @@ module.exports = class Nux extends EventEmitter {
 
     return promiseFinally(Promise.race([promise, canceled]), () => {
       screen.destroy();
+      console.log('config generated - please restart screeps-multimeter')
     });
   }
 };
