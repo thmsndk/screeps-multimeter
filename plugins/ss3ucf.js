@@ -1,7 +1,6 @@
 // https://github.com/screepers/screepers-standards/blob/master/SS3-Unified_Credentials_File.md
-const { ScreepsAPI } = require("screeps-api");
-const blessed = require("blessed");
-
+// // const { ScreepsAPI } = require("screeps-api");
+const  { list } = require("../src/blessed-util")
 //const { SS3 } = require("screeps-ss3-ucf"); // TODO: a new npm package containing the appropiate methods to get the ss3 config details for other projects to use
 const fs = require("fs");
 const YAML = require("yamljs");
@@ -10,10 +9,12 @@ const Promise = require("bluebird");
 
 Promise.promisifyAll(fs);
 
-// we need to present a list of servers to select
-// we need to store selected server in the multimeter config
+// TODO: we need to present a list of servers to select
+// TODO: we need to store selected server in the multimeter config
+// TODO: ability to select & connect to a new server?
 
-const fromConfig = async (server = "main", config = false, opts = {}) => {
+const load = async (config = false, opts = {}) => {
+  // const fromConfig = async (server = "main", config = false, opts = {}) => {
   const paths = [];
   if (process.env.SCREEPS_CONFIG) {
     paths.push(process.env.SCREEPS_CONFIG);
@@ -38,39 +39,45 @@ const fromConfig = async (server = "main", config = false, opts = {}) => {
     }
   }
   for (const path of paths) {
-    const data = await loadConfig(path);
+    const data = await readFile(path);
     if (data) {
       if (!data.servers) {
         throw new Error(
           `Invalid config: 'servers' object does not exist in '${path}'`,
         );
       }
-      if (!data.servers[server]) {
-        throw new Error(`Server '${server}' does not exist in '${path}'`);
-      }
-      const conf = data.servers[server];
-      const api = new ScreepsAPI(
-        Object.assign(
-          {
-            hostname: conf.host,
-            port: conf.port,
-            protocol: conf.secure ? "https" : "http",
-            token: conf.token,
-          },
-          opts,
-        ),
-      );
-      api.appConfig = (data.configs && data.configs[config]) || {};
-      if (!conf.token && conf.username && conf.password) {
-        await api.auth(conf.username, conf.password);
-      }
-      return api;
+
+      Object.entries(data.servers).forEach(([name, server]) => {
+        server.protocol = server.secure ? "https" : "http";
+        server.port = server.port || server.secure ? 433 : 21025;
+      });
+      const config = (data.configs && data.configs[config]) || {};
+
+      return { servers: data.servers, config };
     }
   }
   throw new Error("No valid config found");
 };
+// // if (!data.servers[server]) {
+// //   throw new Error(`Server '${server}' does not exist in '${path}'`);
+// // }
+// // const server = data.servers[server];
+// //       const api = new ScreepsAPI(
+// //         Object.assign(
+// //           {
+// //             hostname: server.host,
+// //             port: server.port,
+// //             protocol: server.secure ? "https" : "http",
+// //             token: server.token,
+// //           },
+// //           opts,
+// //         ),
+// //       );
+// // if (!conf.token && conf.username && conf.password) {
+// //   await api.auth(conf.username, conf.password);
+// // }
 
-const loadConfig = async file => {
+const readFile = async file => {
   try {
     const contents = await fs.readFileAsync(file, "utf8");
     return YAML.parse(contents);
@@ -83,107 +90,55 @@ const loadConfig = async file => {
   }
 };
 
-function list(screen, items) {
-  let index = 0;
-  // Create a box perfectly centered horizontally and vertically.
-  var list = blessed.list({
-    parent: screen,
-    align: "center",
-    mouse: true,
-    width: "50%",
-    height: "50%",
-    top: "center",
-    left: "center",
-    selectedBg: "green",
-    items: items /*[
-      "one",
-      "two",
-      "three",
-      "four",
-      "five",
-      "six",
-      "seven",
-      "eight",
-      "nine",
-      "ten"
-  ]*/,
-    tags: true,
-    keys: true,
-    vi: true,
-  });
-  // list.select(0);
-  screen.render();
 
-  // // list.prepend(
-  // //   blessed.text({
-  // //     left: 2,
-  // //     content: " My list ",
-  // //   }),
-  // // );
 
-  // // list.on("keypress", function(ch, key) {
-  // //   if (key.name === "up" || key.name === "k") {
-  // //     index++;
-  // //     list.up();
-  // //     screen.render();
-  // //     return;
-  // //   } else if (key.name === "down" || key.name === "j") {
-  // //     index--;
-  // //     list.down();
-  // //     screen.render();
-  // //     return;
-  // //   } else if (key.name === "return") {
-  // //     console.log(`return? ${index} ${list.get}`)
-  // //     list.select(index);
-  // //     list.getLine()
-  // //   }
-  // //   // // else {
-  // //   // //   console.log(key.name)
-  // //   // // }
-  // // });
 
-  return new Promise((resolve, reject) => {
-    list.on("select", function(item) {
-      const value = item.content
-      console.log(`${value} selected`);
-      list.destroy()
-      resolve(value);
-    });
-
-    list.on("cancel ", function(value) {
-      console.log(`rejected`);
-      reject(new Error("cancel"));
-    });
-  });
-}
 
 // parent: multimeter.screen, when we do list()
 
-module.exports = function(multimeter, nux) {
+module.exports = async function(multimeter, nux) {
+  const { servers, config } = await load("screeps-multimeter");
   if (nux) {
-    nux.on("selectServer", function(event) {
-      event.skip = true;
+    nux.on("selectServer", async event => {
       // // console.log('test!!!!!')
       // // if (event.type === "log") {
-      // //   event.line = parseLogJson(html2json(event.line));
-      // //   event.formatted = true;
-      // // }
+        // //   event.line = parseLogJson(html2json(event.line));
+        // //   event.formatted = true;
+        // // }
+        const items = Object.entries(servers).map(([name, server]) => name);
+        
+        if (!items.length) {
+          return;
+        }
+
+        event.skip = true;
+
       event.promise = Promise.resolve(
-        list(nux.screen, [
-          "one",
-          "two",
-          "three",
-          "four",
-          "five",
-          "six",
-          "seven",
-          "eight",
-          "nine",
-          "ten",
-        ]),
-      )
-        .then(server => console.log(server))
-        .catch(err => console.log(err));
+        list(nux.screen, items),
+        // listtable(nux.screen, servers, (item) => [item.]),
+      ).then(name => {
+        // // console.log(name);
+        let config = event.config || []
+        const server = servers[name];
+        console.log(server);
+        if (server) {
+          Object.assign(
+            config,
+            {
+              token: server.token,
+              username: server.username,
+              password: server.password,
+              hostname: server.host,
+              port: server.port,
+              protocol: server.secure ? "https" : "http",
+              shard: !server.token ? "shard0" : null
+            },
+          );
+        }
+        console.log(config)
+        return config;
+      });
+      // .catch(err => console.log(err));
     });
   }
   // multimeter.console.on("addLines", function(event) {
@@ -192,62 +147,4 @@ module.exports = function(multimeter, nux) {
   //     event.formatted = true;
   //   }
   // });
-};
-
-let parseLogJson = function(obj) {
-  let ret = "",
-    bgColor,
-    color,
-    bold,
-    underline;
-
-  if (obj.attr && obj.attr.style) {
-    let i = obj.attr.style.indexOf("color:");
-    if (i !== -1) {
-      color = `${obj.attr.style[i + 1].replace(/;/g, "")}-fg`;
-    }
-
-    i = obj.attr.style.indexOf("background:");
-    if (i !== -1) {
-      bgColor = `${obj.attr.style[i + 1].replace(/;/g, "")}-bg`;
-    }
-
-    i = obj.attr.style.indexOf("font-weight:");
-    if (i !== -1) {
-      bold = `${obj.attr.style[i + 1].replace(/;/g, "")}`;
-    }
-
-    i = obj.attr.style.indexOf("text-decoration:");
-    if (i !== -1) {
-      underline = `${obj.attr.style[i + 1].replace(/;/g, "")}`;
-    }
-  }
-
-  if (obj.text) {
-    ret = obj.text;
-  }
-  if (obj.child) {
-    ret = obj.child.reduce(function(acc, child) {
-      acc = acc + parseLogJson(child);
-      return acc;
-    }, ret);
-  }
-
-  if (bold) {
-    ret = `{${bold}}${ret}{/${bold}}`;
-  }
-
-  if (underline) {
-    ret = `{${underline}}${ret}{/${underline}}`;
-  }
-
-  if (color) {
-    ret = `{${color}}${ret}{/${color}}`;
-  }
-
-  if (bgColor) {
-    ret = `{${bgColor}}${ret}{/${bgColor}}`;
-  }
-
-  return ret;
 };

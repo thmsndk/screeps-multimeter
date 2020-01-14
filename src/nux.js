@@ -73,10 +73,10 @@ module.exports = class Nux extends EventEmitter {
   }
 
   loadPlugins() {
-    _.each(BUILTIN_PLUGINS, name => {
+    _.each(BUILTIN_PLUGINS, async name => {
       const module = require(name);
       try {
-        module(null, this);
+        await module(null, this);
       } catch (error) {
         console.log(`${name} was not written to support nux events`);
       }
@@ -115,10 +115,12 @@ module.exports = class Nux extends EventEmitter {
         const event = { config };
         this.emit("selectServer", event);
         if (event.skip) {
-          if(event.promise){
-            console.log('we got a promise')
-            return event.promise
+          // // console.log('skip')
+          if (event.promise) {
+            // // console.log('we got a promise')
+            return event.promise;
           }
+          // // console.log('no promise')
           return config;
         }
 
@@ -147,12 +149,14 @@ module.exports = class Nux extends EventEmitter {
               ),
         );
       })
-      .then(config =>
+      .then(config => {
         // TODO: emit event, check for skip
-        prompt(screen, "Enter shard name:", "shard0").then(shard =>
+        // TODO: could make an api call to get shard list
+        console.log(config)
+        return prompt(screen, "Enter shard name:", "shard0").then(shard =>
           Object.assign({ shard }, config),
-        ),
-      )
+        );
+      })
       .then(config =>
         prompt(
           screen,

@@ -87,12 +87,12 @@ class Gauges extends blessed.layout {
       this.cpuBar.setProgress(100);
     } else {
       this.cpuLabel.setContent(printf("CPU: %3d/%3d", cpu_current, cpu_limit));
-      this.cpuBar.setProgress(cpu_current / cpu_limit * 100);
+      this.cpuBar.setProgress((cpu_current / cpu_limit) * 100);
     }
     this.memLabel.setContent(
       printf("Mem: %4dK/%4dK", mem_current / 1024, mem_limit / 1024),
     );
-    this.memBar.setProgress(mem_current / mem_limit * 100);
+    this.memBar.setProgress((mem_current / mem_limit) * 100);
     this.screen.render();
   }
 }
@@ -125,6 +125,7 @@ module.exports = class Multimeter extends EventEmitter {
   run() {
     var opts = {};
     opts.token = this.config.token;
+    // // opts.protocol = this.config.protocol || (this.config.token ? "https" : "http");
     opts.protocol = this.config.token ? "https" : "http";
     if (this.config.hostname) opts.hostname = this.config.hostname;
     if (this.config.port) opts.port = this.config.port;
